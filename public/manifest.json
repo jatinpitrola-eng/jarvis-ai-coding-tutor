@@ -1,0 +1,58 @@
+{
+  "name": "Jarvis — AI Coding Tutor",
+  "short_name": "Jarvis",
+  "description": "Learn to code with Jarvis, your AI coding tutor. Chat, voice lessons, interactive playground. Auto-detects your language. Supports Python, JavaScript, React, Go, Rust and more.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0f0e",
+  "theme_color": "#0b0f0e",
+  "categories": ["education", "productivity", "developer"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Chat with Jarvis",
+      "short_name": "Chat",
+      "url": "/?tab=chat",
+      "description": "Ask Jarvis anything about coding"
+    },
+    {
+      "name": "Voice Lesson",
+      "short_name": "Voice",
+      "url": "/?tab=voice",
+      "description": "Hands-free voice-to-voice learning"
+    },
+    {
+      "name": "Playground",
+      "short_name": "Play",
+      "url": "/?tab=playground",
+      "description": "Practice coding with AI-graded exercises"
+    }
+  ]
+}
