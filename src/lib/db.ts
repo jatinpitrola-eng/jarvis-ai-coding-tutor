@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client'
+import { createClient } from '@libsql/client'
+import { PrismaLibSQL } from '@prisma/adapter-libsql'
 
 // Database client setup.
 // - Local file SQLite (sandbox, DATABASE_URL=file:...) → plain PrismaClient (native sqlite).
@@ -7,14 +9,10 @@ import { PrismaClient } from '@prisma/client'
 
 function createPrismaClient() {
   const url = process.env.DATABASE_URL || 'file:./db/custom.db'
-  const isTurso = url.startsWith('libsql:') || url.startsWith('https:') || url.startsWith('http:')
+  const isTurso =
+    url.startsWith('libsql:') || url.startsWith('https:') || url.startsWith('http:')
 
   if (isTurso) {
-    // Remote Turso: use the libsql driver adapter.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { createClient } = require('@libsql/client')
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { PrismaLibSQL } = require('@prisma/adapter-libsql')
     const authToken = process.env.DATABASE_AUTH_TOKEN || undefined
     const libsql = createClient({ url, authToken })
     const adapter = new PrismaLibSQL(libsql)
