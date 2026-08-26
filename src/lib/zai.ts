@@ -39,8 +39,31 @@ export function getOpenAIClient(): OpenAI {
   return _openai
 }
 
+// Model fallback chain — if the primary model 404s (deprecated/no access),
+// try the next one. Covers all current + recently-deprecated Groq models.
+const MODEL_FALLBACKS = [
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
+  'deepseek-r1-distill-llama-70b',
+  'qwen-2.5-coder-32b',
+  'qwen-2.5-32b',
+  'llama-3.2-3b-preview',
+  'llama-3.2-1b-preview',
+  'llama3-70b-8192',
+  'llama3-8b-8192',
+  'gemma2-9b-it',
+  'mixtral-8x7b-32768',
+  'llama-3.1-70b-versatile',
+]
+
 export function getModel(): string {
   return process.env.AI_MODEL || 'llama-3.3-70b-versatile'
+}
+
+/** Returns the list of models to try, primary first then fallbacks. */
+function getModelChain(): string[] {
+  const primary = getModel()
+  return [primary, ...MODEL_FALLBACKS.filter((m) => m !== primary)]
 }
 
 /**
@@ -117,19 +140,34 @@ export async function* streamChat(
 ): AsyncGenerator<string, void, unknown> {
   if (shouldUsePublicAI()) {
     const client = getOpenAIClient()
-    const stream = await client.chat.completions.create(
-      {
-        model: getModel(),
-        messages: messages as never,
-        stream: true,
-      },
-      signal ? { signal } : undefined
-    )
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content
-      if (delta) yield delta
+    const models = getModelChain()
+    let lastErr: unknown = null
+    for (const model of models) {
+      try {
+        const stream = await client.chat.completions.create(
+          {
+            model,
+            messages: messages as never,
+            stream: true,
+          },
+          signal ? { signal } : undefined
+        )
+        for await (const chunk of stream) {
+          const delta = chunk.choices[0]?.delta?.content
+          if (delta) yield delta
+        }
+        return // success — done
+      } catch (err: unknown) {
+        lastErr = err
+        // If it's a 404 (model not found) or 403, try the next model.
+        const msg = err instanceof Error ? err.message : String(err)
+        if (msg.includes('404') || msg.includes('does not exist') || msg.includes('403') || msg.includes('Forbidden') || msg.includes('400') || msg.includes('decommissioned') || msg.includes('deprecation')) {
+          continue // try next model
+        }
+        throw err // other errors (auth, rate limit, etc.) — don't retry
+      }
     }
-    return
+    throw lastErr || new Error('All models failed')
   }
 
   // Sandbox path: z-ai SDK
@@ -184,11 +222,25 @@ export async function completeChat(
 ): Promise<string> {
   if (shouldUsePublicAI()) {
     const client = getOpenAIClient()
-    const res = await client.chat.completions.create({
-      model: getModel(),
-      messages: messages as never,
-    })
-    return res.choices[0]?.message?.content || ''
+    const models = getModelChain()
+    let lastErr: unknown = null
+    for (const model of models) {
+      try {
+        const res = await client.chat.completions.create({
+          model,
+          messages: messages as never,
+        })
+        return res.choices[0]?.message?.content || ''
+      } catch (err: unknown) {
+        lastErr = err
+        const msg = err instanceof Error ? err.message : String(err)
+        if (msg.includes('404') || msg.includes('does not exist') || msg.includes('403') || msg.includes('Forbidden') || msg.includes('400') || msg.includes('decommissioned') || msg.includes('deprecation')) {
+          continue
+        }
+        throw err
+      }
+    }
+    throw lastErr || new Error('All models failed')
   }
 
   const zai = await getZai()
