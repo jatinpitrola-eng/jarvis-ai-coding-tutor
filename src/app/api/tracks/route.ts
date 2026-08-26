@@ -278,35 +278,36 @@ const TRACK_SEEDS: TrackSeed[] = [
  * Lesson `content` is left empty and generated lazily by /api/lessons/[id].
  */
 export async function ensureTracksSeeded(): Promise<void> {
-  const existing = await db.learningTrack.findMany({ select: { slug: true } })
-  const existingSlugs = new Set(existing.map((t) => t.slug))
+  const existing = await db.learningTrack.findMany({})
+  const existingSlugs = new Set(existing.map((t: any) => t.slug))
   const missing = TRACK_SEEDS.filter((s) => !existingSlugs.has(s.slug))
   if (missing.length === 0) return
 
-  // Insert only the missing tracks (with their lessons) in one transaction.
-  await db.$transaction(
-    missing.map((seed) =>
-      db.learningTrack.create({
+  // Insert missing tracks + their lessons sequentially.
+  for (const seed of missing) {
+    const track = await db.learningTrack.create({
+      data: {
+        slug: seed.slug,
+        title: seed.title,
+        language: seed.language,
+        description: seed.description,
+        icon: seed.icon,
+        difficulty: seed.difficulty,
+        order: seed.order,
+      },
+    })
+    for (let i = 0; i < seed.lessons.length; i++) {
+      await db.lesson.create({
         data: {
-          slug: seed.slug,
-          title: seed.title,
-          language: seed.language,
-          description: seed.description,
-          icon: seed.icon,
-          difficulty: seed.difficulty,
-          order: seed.order,
-          lessons: {
-            create: seed.lessons.map((title, idx) => ({
-              order: idx + 1,
-              title,
-              summary: '',
-              content: '',
-            })),
-          },
+          trackId: (track as any).id,
+          order: i + 1,
+          title: seed.lessons[i],
+          summary: '',
+          content: '',
         },
-      }),
-    ),
-  )
+      })
+    }
+  }
 }
 
 /**
@@ -329,31 +330,31 @@ export async function GET(req: NextRequest) {
 
     const tracks = await db.learningTrack.findMany({
       orderBy: { order: 'asc' },
-      include: {
-        lessons: { select: { id: true } },
-      },
     })
 
-    // Fetch completed progress for this learner in one query.
+    // Fetch lesson counts per track.
+    const allLessons = await db.lesson.findMany({})
+    const lessonCountByTrack: Record<string, number> = {}
+    for (const l of allLessons as any[]) {
+      lessonCountByTrack[l.trackId] = (lessonCountByTrack[l.trackId] || 0) + 1
+    }
+
+    // Fetch completed progress for this learner.
     let completedByTrack: Record<string, number> = {}
     if (learnerId) {
       const progress = await db.lessonProgress.findMany({
         where: { learnerId, status: 'completed' },
-        select: { lessonId: true },
       })
-      const completedLessonIds = new Set(progress.map((p) => p.lessonId))
       const lessonIdToTrack = new Map<string, string>()
-      const allLessons = await db.lesson.findMany({ select: { id: true, trackId: true } })
-      for (const l of allLessons) lessonIdToTrack.set(l.id, l.trackId)
-      for (const p of progress) {
+      for (const l of allLessons as any[]) lessonIdToTrack.set(l.id, l.trackId)
+      for (const p of progress as any[]) {
         const trackId = lessonIdToTrack.get(p.lessonId)
         if (!trackId) continue
         completedByTrack[trackId] = (completedByTrack[trackId] || 0) + 1
       }
-      void completedLessonIds
     }
 
-    const result = tracks.map((t) => ({
+    const result = (tracks as any[]).map((t) => ({
       id: t.id,
       slug: t.slug,
       title: t.title,
@@ -362,7 +363,7 @@ export async function GET(req: NextRequest) {
       icon: t.icon,
       difficulty: t.difficulty,
       order: t.order,
-      lessonsCount: t.lessons.length,
+      lessonsCount: lessonCountByTrack[t.id] || 0,
       completedCount: completedByTrack[t.id] || 0,
     }))
 
