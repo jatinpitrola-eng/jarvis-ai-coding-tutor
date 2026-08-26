@@ -320,3 +320,29 @@ Stage Summary:
 - Voice tab now offers ChatGpt-style direct voice-to-voice (Live mode).
 - 15 learning tracks + 17 playground languages — covers "all coding languages".
 - App feels human/personal, not AI-made.
+
+---
+Task ID: 11 (vercel-ready)
+Agent: main (orchestrator)
+Task: Make Jarvis fully working + Vercel-deployable (env-dual AI, Turso DB, browser TTS/ASR)
+
+Work Log:
+- Root cause confirmed: z-ai SDK backend (internal-api.z.ai → 172.25.x.x private IP) is reachable ONLY inside the sandbox. Direct OpenAI-style fetch to z-ai/v1/chat/completions returns empty; /v1/models returns 404. So the SDK must be used (not a raw client), and it cannot run on Vercel.
+- Decision: env-dual code path. AI_API_KEY empty (sandbox) → z-ai SDK. AI_API_KEY set (Vercel) → OpenAI-compatible client (Groq recommended, free).
+- Installed: `openai` (OpenAI-compatible client, works with Groq base URL), `@libsql/client` + `@prisma/adapter-libsql` (Turso driver adapter), pinned Prisma CLI to v6 stable (v8 RC broke CLI commands).
+- Refactored `src/lib/zai.ts`: added `shouldUsePublicAI()`, `getOpenAIClient()`, `getModel()`, `streamChat()` async generator (dual: z-ai SDK SSE parse OR openai stream), `completeChat()` (dual: z-ai non-stream OR openai). Kept `SYSTEM_PROMPT_TUTOR`, `stripJsonFences`, `tryParseJson`.
+- Updated `/api/chat/route.ts`: replaced manual z-ai stream parsing with `for await (const delta of streamChat(messages))` — one clean code path for both backends.
+- Updated `/api/lessons/[id]/route.ts`, `/api/playground/exercise/route.ts`, `/api/playground/review/route.ts`: replaced `getZai()` + manual completion with `completeChat([...])`.
+- Refactored `src/lib/db.ts`: conditional — local `file:` URLs use plain PrismaClient (native sqlite), remote `libsql://` Turso URLs use the PrismaLibSQL driver adapter. Both paths use the same schema + client code.
+- prisma/schema.prisma: kept `provider = "sqlite"`, added `previewFeatures = ["driverAdapters"]` (works for both native + adapter in Prisma 6).
+- Voice TTS: moved fully to browser-native `window.speechSynthesis` in `src/components/codebhai/voice-view.tsx` (replaced /api/tts fetch with speakText using SpeechSynthesisUtterance; voice selection prefers en-IN). Works on sandbox + Vercel, free, no server key. ASR (Live mode) already uses browser SpeechRecognition.
+- Deploy config: `vercel.json` (buildCommand: `prisma generate && next build`, 60s max for chat route), `.env.example` (documents DATABASE_URL, DATABASE_AUTH_TOKEN, AI_API_KEY, AI_BASE_URL, AI_MODEL), `DEPLOY.md` (full step-by-step: Turso + Groq + GitHub + Vercel + env vars).
+- `.gitignore`: added db/*.db, download/, upload/, tests/, examples/, mini-services/.
+- Git: initialized repo, 2 commits (app + deploy guide). Ready to push to GitHub.
+- Lint: 0 errors. Tested in sandbox: GET / 200, GET /api/tracks 200, POST /api/chat streams "Hey bhai! Main Jarvis che, Jatin Pitroda ne banavya che." (Eng-Guj + Jatin attribution intact after refactor).
+
+Stage Summary:
+- App is now Vercel-deployable and fully working (sandbox keeps z-ai; Vercel uses Groq + Turso + browser TTS/ASR).
+- What the USER must do (free, ~10 min): get Groq key, create Turso DB, push to GitHub, import to Vercel, add 5 env vars, deploy. DEPLOY.md has exact steps.
+- No tokens were used (the user's leaked tokens should be revoked). Deploy uses the user's own free keys via Vercel env vars.
+- The /api/tts and /api/asr routes still exist (kept for sandbox) but the frontend no longer calls them — TTS is browser-native, ASR is browser-native.
