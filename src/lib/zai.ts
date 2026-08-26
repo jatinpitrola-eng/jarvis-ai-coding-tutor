@@ -26,22 +26,38 @@ export async function getZai(): Promise<ZAI> {
  * - Vercel (AI_API_KEY set): uses OpenAI-compatible API (Groq/OpenAI/etc.).
  */
 export function shouldUsePublicAI(): boolean {
-  return !!process.env.AI_API_KEY
+  // Use public AI if a key is set, OR if we're NOT in the z-ai sandbox.
+  // The z-ai SDK only works inside the sandbox (internal-api.z.ai is private).
+  // On Vercel/any public host with no key, fall back to Pollinations (free, no key).
+  if (process.env.AI_API_KEY) return true
+  // Detect sandbox: the z-ai config file exists at /etc/.z-ai-config.
+  // In production (Vercel) that file won't exist.
+  return process.env.NODE_ENV === 'production'
 }
 
 let _openai: OpenAI | null = null
 export function getOpenAIClient(): OpenAI {
   if (_openai) return _openai
-  _openai = new OpenAI({
-    apiKey: process.env.AI_API_KEY!,
-    baseURL: process.env.AI_BASE_URL || 'https://api.groq.com/openai/v1',
-  })
+  // If a key is set, use the configured provider (Groq/OpenAI/Gemini).
+  // Otherwise use Pollinations.ai (free, no key, OpenAI-compatible).
+  if (process.env.AI_API_KEY) {
+    _openai = new OpenAI({
+      apiKey: process.env.AI_API_KEY,
+      baseURL: process.env.AI_BASE_URL || 'https://api.groq.com/openai/v1',
+    })
+  } else {
+    _openai = new OpenAI({
+      apiKey: 'pollinations-anonymous',
+      baseURL: 'https://text.pollinations.ai/openai',
+    })
+  }
   return _openai
 }
 
 // Model fallback chain — if the primary model 404s (deprecated/no access),
 // try the next one. Covers all current + recently-deprecated Groq models.
-const MODEL_FALLBACKS = [
+// For Pollinations (no key), the primary is 'openai' (free).
+const GROQ_FALLBACKS = [
   'llama-3.3-70b-versatile',
   'llama-3.1-8b-instant',
   'deepseek-r1-distill-llama-70b',
@@ -56,14 +72,21 @@ const MODEL_FALLBACKS = [
   'llama-3.1-70b-versatile',
 ]
 
+const POLLINATIONS_FALLBACKS = ['openai', 'openai-fast', 'mistral', 'llama']
+
 export function getModel(): string {
-  return process.env.AI_MODEL || 'llama-3.3-70b-versatile'
+  if (process.env.AI_API_KEY) {
+    return process.env.AI_MODEL || 'llama-3.3-70b-versatile'
+  }
+  // Pollinations default
+  return process.env.AI_MODEL || 'openai'
 }
 
 /** Returns the list of models to try, primary first then fallbacks. */
-function getModelChain(): string[] {
+export function getModelChain(): string[] {
   const primary = getModel()
-  return [primary, ...MODEL_FALLBACKS.filter((m) => m !== primary)]
+  const fallbacks = process.env.AI_API_KEY ? GROQ_FALLBACKS : POLLINATIONS_FALLBACKS
+  return [primary, ...fallbacks.filter((m) => m !== primary)]
 }
 
 /**
@@ -144,6 +167,8 @@ export async function* streamChat(
     let lastErr: unknown = null
     for (const model of models) {
       try {
+        // Try streaming first.
+        let yieldedAny = false
         const stream = await client.chat.completions.create(
           {
             model,
@@ -154,12 +179,26 @@ export async function* streamChat(
         )
         for await (const chunk of stream) {
           const delta = chunk.choices[0]?.delta?.content
-          if (delta) yield delta
+          if (delta) {
+            yieldedAny = true
+            yield delta
+          }
         }
-        return // success — done
+        if (yieldedAny) return // success
+        // Stream yielded nothing — fall back to non-streaming for this model.
+        const res = await client.chat.completions.create({
+          model,
+          messages: messages as never,
+        })
+        const text = res.choices[0]?.message?.content || ''
+        if (text) {
+          yield text
+          return
+        }
+        // Nothing from this model either — try next.
+        continue
       } catch (err: unknown) {
         lastErr = err
-        // If it's a 404 (model not found) or 403, try the next model.
         const msg = err instanceof Error ? err.message : String(err)
         if (msg.includes('404') || msg.includes('does not exist') || msg.includes('403') || msg.includes('Forbidden') || msg.includes('400') || msg.includes('decommissioned') || msg.includes('deprecation')) {
           continue // try next model
