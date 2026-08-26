@@ -1,9 +1,11 @@
 // Jarvis Prisma schema
 // A coding-tutor PWA: chat history + structured learning tracks + playground progress.
 // No auth — we identify learners by a deviceId generated in localStorage.
+// DB provider: libsql (works with local file: in sandbox AND remote Turso on Vercel)
 
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {

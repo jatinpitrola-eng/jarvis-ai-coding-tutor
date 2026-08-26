@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { getZai, SYSTEM_PROMPT_TUTOR } from '@/lib/zai'
+import { streamChat, SYSTEM_PROMPT_TUTOR } from '@/lib/zai'
 import { getOrCreateLearner } from '@/lib/learner'
 
 /**
@@ -149,92 +149,18 @@ export async function POST(req: NextRequest) {
           ...history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
         ]
 
-        // 6) Stream tokens from the model.
-        const zai = await getZai()
+        // 6) Stream tokens from the model (z-ai SDK in sandbox, OpenAI-compat on Vercel).
         let fullText = ''
 
         try {
-          const result = await zai.chat.completions.create({
-            messages,
-            stream: true,
-            thinking: { type: 'disabled' },
-          } as any)
-
-          if (result && typeof (result as any).getReader === 'function') {
-            // Streaming path: the SDK returned a raw ReadableStream (SSE body).
-            const reader: ReadableStreamDefaultReader<Uint8Array> = (result as ReadableStream<Uint8Array>).getReader()
-            const decoder = new TextDecoder()
-            let buffer = ''
-            while (true) {
-              const { done, value } = await reader.read()
-              if (done) break
-              buffer += decoder.decode(value, { stream: true })
-              const lines = buffer.split('\n')
-              buffer = lines.pop() || ''
-              for (const line of lines) {
-                const trimmed = line.trim()
-                if (!trimmed.startsWith('data:')) continue
-                const data = trimmed.slice(5).trim()
-                if (!data || data === '[DONE]') continue
-                try {
-                  const json = JSON.parse(data)
-                  const delta: string =
-                    json?.choices?.[0]?.delta?.content ||
-                    json?.choices?.[0]?.message?.content ||
-                    ''
-                  if (delta) {
-                    fullText += delta
-                    send({ type: 'delta', content: delta })
-                  }
-                } catch {
-                  // Ignore unparseable keep-alive lines.
-                }
-              }
-            }
-            // Flush any final buffered line.
-            if (buffer.trim().startsWith('data:')) {
-              const data = buffer.trim().slice(5).trim()
-              if (data && data !== '[DONE]') {
-                try {
-                  const json = JSON.parse(data)
-                  const delta: string = json?.choices?.[0]?.delta?.content || ''
-                  if (delta) {
-                    fullText += delta
-                    send({ type: 'delta', content: delta })
-                  }
-                } catch {
-                  /* ignore */
-                }
-              }
-            }
-          } else if (result && (result as any).choices) {
-            // Non-streaming fallback: SDK returned a parsed JSON completion.
-            const text: string = (result as any).choices?.[0]?.message?.content || ''
-            fullText = text
-            if (text) {
-              send({ type: 'delta', content: text })
-            }
-          } else {
-            // Unknown shape — treat as empty.
-            fullText = ''
+          for await (const delta of streamChat(messages)) {
+            if (!delta) continue
+            fullText += delta
+            send({ type: 'delta', content: delta })
           }
         } catch (streamErr: unknown) {
-          // Try a non-streaming fallback once.
-          const fallbackMsg = streamErr instanceof Error ? streamErr.message : 'stream failed'
-          try {
-            const zai2 = await getZai()
-            const completion = await zai2.chat.completions.create({
-              messages,
-              thinking: { type: 'disabled' },
-            } as any)
-            const text: string =
-              (completion as any)?.choices?.[0]?.message?.content || ''
-            fullText = text
-            if (text) {
-              send({ type: 'delta', content: text })
-            }
-          } catch (innerErr: unknown) {
-            const msg = innerErr instanceof Error ? innerErr.message : fallbackMsg
+          const msg = streamErr instanceof Error ? streamErr.message : 'stream failed'
+          if (!fullText) {
             send({ type: 'error', message: `Failed to generate a reply: ${msg}` })
             controller.close()
             return

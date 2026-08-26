@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getZai, stripJsonFences, tryParseJson } from '@/lib/zai'
+import { completeChat, stripJsonFences, tryParseJson } from '@/lib/zai'
 
 /**
  * POST /api/playground/review
@@ -101,8 +101,6 @@ async function generateReview(
   language: string,
   code: string,
 ): Promise<ReviewJson> {
-  const zai = await getZai()
-
   const system =
     'You are Jarvis, a patient code reviewer for beginners. ' +
     'You ALWAYS respond with ONLY valid JSON — no markdown fences, no prose. ' +
@@ -121,11 +119,10 @@ async function generateReview(
     `}\n\n` +
     `Respond with ONLY the JSON object. No markdown fences. No prose.`
 
-  const first = await callLlmJson(zai, system, user)
+  const first = await callLlmJson(system, user)
   if (first) return normalizeReview(first)
 
   const retry = await callLlmJson(
-    zai,
     system,
     user + '\n\nREMINDER: Return ONLY valid JSON. No backticks. No prose.',
   )
@@ -135,18 +132,13 @@ async function generateReview(
 }
 
 async function callLlmJson(
-  zai: Awaited<ReturnType<typeof getZai>>,
   system: string,
   user: string,
 ): Promise<unknown | null> {
-  const completion: any = await zai.chat.completions.create({
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: user },
-    ],
-    thinking: { type: 'disabled' },
-  } as any)
-  const raw: string = completion?.choices?.[0]?.message?.content || ''
+  const raw = await completeChat([
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ])
   const stripped = stripJsonFences(raw)
   return tryParseJson(stripped)
 }

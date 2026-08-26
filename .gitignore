@@ -51,4 +51,10 @@ prompt
 
 server.log
 # Skills directory
-/skills/
+/skills/db/*.db
+db/*.db-journal
+/download/
+/upload/
+/tests/
+examples/
+mini-services/

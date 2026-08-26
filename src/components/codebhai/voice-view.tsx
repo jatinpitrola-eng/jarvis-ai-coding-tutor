@@ -276,29 +276,46 @@ export function VoiceView() {
     }
   }, [])
 
-  /* ---- TTS fetch helper ---- */
+  /* ---- TTS via browser SpeechSynthesis (free, works on Vercel + sandbox) ---- */
+  const synthRef = React.useRef<SpeechSynthesisUtterance | null>(null)
+  const onSpeakingEndRef = React.useRef<() => void>(() => {})
+
   const synthesizeBlobUrl = React.useCallback(
     async (text: string): Promise<string | undefined> => {
+      // We don't actually return a blob URL — speechSynthesis plays directly.
+      // Return a sentinel so playAudio knows to use speechSynthesis.
+      void text
+      return '__use_browser_synth__'
+    },
+    []
+  )
+
+  /* ---- Play text via browser speechSynthesis ---- */
+  const speakText = React.useCallback(
+    (text: string) => {
       try {
-        const learnerId = await getLearnerId().catch(() => '')
-        const res = await apiFetch('/api/tts', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(learnerId ? { 'x-learner-id': learnerId } : {}),
-          },
-          body: JSON.stringify({
-            text: text.slice(0, MAX_TTS_CHARS),
-            voice: 'tongtong',
-            speed: 1.0,
-          }),
-        })
-        if (!res.ok) throw new Error('TTS failed')
-        const buf = await res.arrayBuffer()
-        const blob = new Blob([buf], { type: 'audio/wav' })
-        return URL.createObjectURL(blob)
+        const synth = window.speechSynthesis
+        if (!synth) {
+          onSpeakingEndRef.current()
+          return
+        }
+        synth.cancel()
+        const u = new SpeechSynthesisUtterance(text.slice(0, 6000))
+        // Try to pick a natural-sounding voice; fall back to default.
+        const voices = synth.getVoices()
+        const preferred =
+          voices.find((v) => /en-IN/i.test(v.lang) && /female|Google|Natural/i.test(v.name)) ||
+          voices.find((v) => /en-IN/i.test(v.lang)) ||
+          voices.find((v) => /^en/i.test(v.lang)) ||
+          voices[0]
+        if (preferred) u.voice = preferred
+        u.rate = 1.0
+        u.onend = () => onSpeakingEndRef.current()
+        u.onerror = () => onSpeakingEndRef.current()
+        synthRef.current = u
+        synth.speak(u)
       } catch {
-        return undefined
+        onSpeakingEndRef.current()
       }
     },
     []
@@ -329,9 +346,15 @@ export function VoiceView() {
     }
   }, [restartRecognition])
 
-  /* ---- Play an audio blob URL via a fresh Audio element ---- */
+  /* ---- Play an audio blob URL via a fresh Audio element, OR speechSynthesis ---- */
   const playAudio = React.useCallback(
     async (url: string) => {
+      // Browser-native speechSynthesis path (free, Vercel-safe)
+      if (url === '__use_browser_synth__') {
+        // The actual text to speak is stashed by the caller; we rely on speakText
+        // being invoked separately. No-op here.
+        return
+      }
       // Cleanup any previously playing audio
       if (audioRef.current) {
         try {
@@ -385,6 +408,12 @@ export function VoiceView() {
       if (audioRef.current.src) URL.revokeObjectURL(audioRef.current.src)
       audioRef.current = null
     }
+    try {
+      window.speechSynthesis?.cancel()
+    } catch {
+      // noop
+    }
+    synthRef.current = null
     abortRef.current?.abort()
     abortRef.current = null
     setInterim('')
@@ -462,7 +491,7 @@ export function VoiceView() {
           )
         )
 
-        // TTS + play
+        // TTS + play (browser-native speechSynthesis — works on Vercel + sandbox)
         setStatus('speaking')
         const audioUrl = await synthesizeBlobUrl(fullText)
         setTurns((prev) =>
@@ -470,7 +499,11 @@ export function VoiceView() {
             t.id === pendingId ? { ...t, audioUrl } : t
           )
         )
-        if (audioUrl) {
+        if (audioUrl === '__use_browser_synth__') {
+          // Wire onSpeakingEnd into the synth utterance, then speak directly.
+          onSpeakingEndRef.current = onSpeakingEnd
+          speakText(fullText)
+        } else if (audioUrl) {
           await playAudio(audioUrl)
           // onSpeakingEnd() will be called by audio.onended
         } else {
@@ -686,13 +719,16 @@ export function VoiceView() {
           t.id === turnId ? { ...t, audioLoading: false, audioUrl: url } : t
         )
       )
-      if (url) {
+      if (url === '__use_browser_synth__') {
+        onSpeakingEndRef.current = onSpeakingEnd
+        speakText(text)
+      } else if (url) {
         await playAudio(url)
       } else {
         onSpeakingEnd()
       }
     },
-    [synthesizeBlobUrl, playAudio, onSpeakingEnd]
+    [synthesizeBlobUrl, playAudio, speakText, onSpeakingEnd]
   )
 
   /* ---- Suggestion chip handler ---- */

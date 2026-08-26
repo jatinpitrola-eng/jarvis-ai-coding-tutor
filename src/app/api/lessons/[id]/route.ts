@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getZai } from '@/lib/zai'
+import { completeChat } from '@/lib/zai'
 
 /**
  * GET /api/lessons/[id]?learnerId=<id>
@@ -86,7 +86,6 @@ async function generateLessonContent(
   language: string,
   trackTitle: string,
 ): Promise<string> {
-  const zai = await getZai()
   const system =
     "You are Jarvis, a friendly coding tutor. Write a beginner-friendly Markdown lesson. Use short paragraphs, an analogy, a fenced code block tagged with the language, and end with a 'Try this' section. Do not wrap the entire response in fences; output Markdown directly."
   const user =
@@ -101,19 +100,12 @@ async function generateLessonContent(
     `4) A brief explanation of the example.\n` +
     `5) A "## Try this" section with 1-2 small challenges the learner can attempt on their own.\n`
 
-  const completion: any = await zai.chat.completions.create({
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: user },
-    ],
-    thinking: { type: 'disabled' },
-  } as any)
+  const text = await completeChat([
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ])
 
-  const text: string =
-    completion?.choices?.[0]?.message?.content ||
-    `# ${lessonTitle}\n\nLesson content is unavailable right now. Please try again.`
-
-  return text
+  return text || `# ${lessonTitle}\n\nLesson content is unavailable right now. Please try again.`
 }
 
 function extractSummary(markdown: string): string {
