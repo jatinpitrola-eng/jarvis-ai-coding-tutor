@@ -141,8 +141,7 @@ export default function Home() {
       <footer className="mt-auto hidden border-t border-border bg-background/80 px-4 py-3 backdrop-blur md:block">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 text-xs text-muted-foreground">
           <span>
-            Built with <span className="text-rose-400">❤</span> — Jarvis
-            learns with you.
+            Made by <span className="font-medium text-foreground">Jatin Pitroda</span>
           </span>
           <span className="text-[11px]">
             Tip: install Jarvis as an app for offline access.
@@ -156,6 +155,9 @@ export default function Home() {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
+        <div className="mx-auto max-w-md px-4 pt-1 text-center text-[10px] text-muted-foreground">
+          Made by <span className="font-medium text-foreground">Jatin Pitroda</span>
+        </div>
         <div className="mx-auto grid max-w-md grid-cols-4">
           {TABS.map((t) => {
             const Icon = t.icon
@@ -207,7 +209,7 @@ function ViewSlot({
   return (
     <div
       className={cn(
-        'absolute inset-x-0 top-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom,0px))] overflow-hidden md:bottom-0',
+        'absolute inset-x-0 top-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] overflow-hidden md:bottom-0',
         active ? 'block' : 'hidden'
       )}
       aria-hidden={!active}

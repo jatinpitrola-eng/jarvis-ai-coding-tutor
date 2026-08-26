@@ -249,3 +249,74 @@ Stage Summary:
 - Language auto-detect confirmed working (Gujarati → Gujarati reply, English → English, mix → mix).
 - All 4 tabs verified interactive end-to-end via Agent Browser.
 - PWA: installable (manifest + icons + SW), dark emerald theme.
+
+---
+Task ID: 9 (voice-continuous)
+Agent: full-stack-developer (voice)
+Task: Rebuild voice-view for ChatGpt-style continuous voice-to-voice conversation
+
+Work Log:
+- Read worklog.md in full (API contract for /api/chat SSE, /api/asr multipart, /api/tts audio/wav). Confirmed apiFetch injects x-learner-id; getLearnerId ensures a learner. Confirmed Language union was expanded (python/javascript/typescript/go/rust/c/cpp/java/csharp/sql/html/css/bash/php/ruby/swift/kotlin/general).
+- Inspected existing voice-view.tsx (~596 lines, MediaRecorder-only flow) and reused the streamVoiceChat SSE reader pattern, extending it with an onSession callback so sessionIdRef can be populated from the first SSE `session` event (so multi-turn conversations reuse the same chat session).
+- Added minimal Web Speech API typings (SRInstance / SREvent / SRErrorEvent / SRCtor) since TS's default lib.dom.d.ts doesn't ship them. getSpeechRecognitionCtor() returns window.SpeechRecognition || window.webkitSpeechRecognition || null.
+- Implemented segmented Live/Tap toggle at the top using shadcn ToggleGroup (variant=outline, size=sm). The Live item is disabled when SpeechRecognition is unavailable; a small "Your browser doesn't support live voice — using tap mode." note renders below the top bar in that case.
+- Built the Live continuous loop:
+  * startLiveConversation() creates a SpeechRecognition instance with continuous=true, interimResults=true, maxAlternatives=1, lang='en-IN' (safe default for Eng-Guj mix).
+  * onresult: ignores results while speakingRef.current is true (so Jarvis's own voice never leaks in); accumulates interim text into the `interim` state for the live bubble; on the first final result, calls handleUserUtterance(finalText) which synchronously sets speakingRef.current=true and aborts recognition before any await.
+  * onerror: not-allowed/service-not-allowed → toast + stopLiveConversation() + setSupported(false) + setMode('tap') fallback. no-speech/aborted/network/audio-capture → ignored (onend handles restart).
+  * onend: if activeRef.current && !speakingRef.current → restartRecognition() (try/catch around rec.start() to swallow InvalidStateError on double-start). Browsers stop recognition after silence; this auto-restart keeps the conversation continuous.
+- handleUserUtterance(text) is shared by Live final results, suggestion chips, and Tap-mode ASR output. It: sets speakingRef=true, aborts recognition, adds user + pending assistant turns, sets status=thinking, POSTs /api/chat (SSE), streams deltas into the assistant turn, then status=speaking, fetches /api/tts (text capped at 1000 chars client-side), creates a blob URL, plays via new Audio(url), and on audio.onended → onSpeakingEnd() sets speakingRef=false, status=listening, restartRecognition(). sessionIdRef is preserved across turns so the conversation continues in one chat session.
+- onSpeakingEnd() is the single "Jarvis finished speaking" entry point: if activeRef.current (live mode active) → status=listening + restart recognition; else → status=idle (tap mode / chip tap one-shot). playAudio() cleans up any previous Audio element + revokes its blob URL before creating a new one, and wires onended/onerror/play()-reject to all funnel through onSpeakingEnd.
+- replayAudio(turnId, text) re-fetches TTS and plays it; pauses recognition if the live conversation is active, then resumes via onSpeakingEnd. Disabled while busy.
+- Tap mode retained the existing MediaRecorder flow (start/stop → /api/asr → handleUserUtterance). The big mic button in Tap mode is disabled during thinking/speaking/transcribing; in Live mode it's always tappable (tap to start, tap again to stop/interrupt).
+- Big mic button visual states: idle=emerald Mic, listening=emerald pulsing Mic + two staggered .cb-pulse-ring rings, thinking=amber Loader2 spin, speaking=emerald Volume2 + single subtle ring, recording=destructive MicOff + red rings, transcribing=amber Loader2. Status pill above the button shows the matching label + a .cb-dot pulse / spinner / Volume2 icon.
+- Live interim transcript renders as a right-aligned italic muted bubble (bg-primary/10) inside the transcript area, animated with framer-motion AnimatePresence (grows as the user speaks, disappears when the final result is committed).
+- Empty state shows "Talk to Jarvis" heading + subtitle + three suggestion chips ("Explain loops", "What is a variable?", "Teach me Python basics"). Tapping a chip calls handleUserUtterance(text) directly (skip speech → thinking → speaking). In Live mode, after Jarvis finishes speaking, status returns to idle (since activeRef is false) unless the user has already tapped the mic to start a real conversation.
+- Language selector now lists ALL 18 languages from the expanded Language union (general + 17 programming languages) instead of just 3.
+- Cleanup on unmount: activeRef/speakingRef=false, abort recognition, pause + revoke audio, abort chat controller, stop MediaRecorder + its MediaStream tracks.
+- Ran `npx eslint src/components/codebhai/voice-view.tsx --max-warnings=0` → EXIT 0 (0 errors, 0 warnings in my file). Note: `bun run lint` reports 1 pre-existing parsing error in src/lib/zai.ts:72 (a malformed escaped-backtick string inserted by the earlier rename-jarvis agent) — that file is explicitly out of scope for this task ("DO NOT touch any other file"), and voice-view.tsx does not import zai.ts so it is unaffected.
+
+Stage Summary:
+- Files changed: src/components/codebhai/voice-view.tsx (full rewrite, ~860 lines).
+- Key decisions:
+  1. Single handleUserUtterance() path is reused by Live final results, suggestion chips, and Tap-mode ASR — it works in both modes because recognitionRef.current?.abort() is a safe no-op when recognition is null, and onSpeakingEnd() checks activeRef.current to decide whether to resume listening (Live) or go idle (Tap).
+  2. speakingRef.current is set synchronously at the very top of handleUserUtterance (before any await), so any subsequent onresult events that fire before recognition.abort() takes effect are ignored via the early-return guard. This is the critical race-condition guard.
+  3. onend auto-restart is gated by `activeRef.current && !speakingRef.current` — this means the browser's natural "stop after silence" behavior is converted into continuous listening, but we DON'T restart while Jarvis is speaking (we'll restart manually in onSpeakingEnd after audio ends).
+  4. Session continuity: sessionIdRef is populated from the first SSE `session` event and reused for every subsequent turn in the same conversation; cleared only on "Clear" button.
+  5. TTS text is sliced to 1000 chars client-side (the /api/tts route already chunks server-side up to ~3000 chars, but capping client-side keeps long assistant replies snappy).
+  6. Lang for SpeechRecognition is hardcoded to 'en-IN' — handles the Eng-Guj mix well enough for v1; switching to 'gu-IN' on Gujarati-script detection was deemed optional per the task.
+- Gotchas:
+  - TS doesn't ship SpeechRecognition types — had to declare minimal interfaces (SRInstance etc.) inline. Arrow-function handlers are assignable to the `this`-typed function properties.
+  - rec.start() throws InvalidStateError if already started — all calls are wrapped in try/catch.
+  - Audio autoplay after an async recognition→chat→tts chain could be blocked in strict browsers; playAudio() catches play() rejection and calls onSpeakingEnd() so the conversation loop continues (text is still visible in the transcript).
+  - The pre-existing src/lib/zai.ts:72 parsing error (malformed escaped backticks in SYSTEM_PROMPT_TUTOR's example string, from the rename-jarvis agent) breaks /api/chat at runtime but is OUT OF SCOPE for this task — voice-view.tsx does not import zai.ts and compiles + lints cleanly on its own.
+
+---
+Task ID: 10 (jarvis-engguj-jatin-voice)
+Agent: main (orchestrator)
+Task: Eng-Guj mix default + Made by Jatin Pitroda + continuous voice mode + all languages + human feel
+
+Work Log:
+- Rewrote SYSTEM_PROMPT_TUTOR (src/lib/zai.ts): default style now English-Gujarati mix; knows it was built by Jatin Pitroda (answers "Jatin Pitroda" to who-made-you); warm human personality; mirrors learner's exact language/script. Fixed a malformed-backtick parsing error in the example line.
+- Footer (src/app/page.tsx): desktop footer now reads "Made by Jatin Pitroda"; mobile bottom nav shows a tiny "Made by Jatin Pitroda" attribution line above the 4 tabs. Bumped the mobile ViewSlot bottom offset to 4.5rem to clear the extra line.
+- Expanded tracks (src/app/api/tracks/route.ts): added 10 new tracks — TypeScript, Node.js, HTML & CSS, SQL, C, C++, Java, C#, Git & Version Control, Bash & Shell (total 15). Changed ensureTracksSeeded() from "skip if any exist" to "upsert missing slugs" so new tracks get added without touching existing progress.
+- Learn-view icon mapping (src/components/codebhai/learn-view.tsx): added Server, Coffee, Hash, Component, Cog imports + mappings for snake/component/server/coffee/hash/gopher/gear/git-branch icons.
+- Playground language selector (src/components/codebhai/playground-view.tsx): expanded from 5 to 17 languages (added c, cpp, java, csharp, sql, html, css, bash, php, ruby, swift, kotlin).
+- Chat + Voice language focus (src/lib/store.ts): expanded Language union + LANGUAGE_LABELS to all 18 entries; chat-view and voice-view pick up the full list automatically.
+- Rebuilt Voice tab (src/components/codebhai/voice-view.tsx) via subagent (Task 9): ChatGpt-style continuous "Live" mode using Web Speech API (SpeechRecognition continuous+interim, auto-restart on silence, ignore-results-while-speaking guard), with "Tap" fallback. Big pulsing mic, live interim transcript, suggestion chips, per-turn replay, full conversation transcript.
+
+Verification (Agent Browser):
+- Page title "Jarvis — AI Coding Tutor", header wordmark "Jarvis".
+- Chat "bhai tame kene banavya? tamru naam su che?" → streamed Eng-Guj reply: "Bhai, main banavtar Jatin Pitroda che! ... Tamru naam 'Jarvis' che ..." (Jatin attribution + Eng-Guj mix confirmed).
+- Learn tab: all 15 tracks render (Python, JS, React, TypeScript, Go, Rust, Node.js, HTML & CSS, SQL, C, C++, Java, C#, Git, Bash) with progress.
+- Voice tab: Live mode (default) + Tap mode toggle, language dropdown (18 langs), suggestion chips, "Start conversation" button, pulsing-mic UI.
+- Desktop footer: "Made by Jatin Pitroda".
+- No console errors. All API routes 200. Lint: 0 errors.
+
+Stage Summary:
+- Eng-Guj mix is the default conversation style; auto-detect still mirrors any language/script.
+- Jarvis knows + states it was built by Jatin Pitroda.
+- Footer attributes "Made by Jatin Pitroda" on desktop + mobile.
+- Voice tab now offers ChatGpt-style direct voice-to-voice (Live mode).
+- 15 learning tracks + 17 playground languages — covers "all coding languages".
+- App feels human/personal, not AI-made.

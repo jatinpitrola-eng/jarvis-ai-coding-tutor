@@ -49,6 +49,23 @@ const TRACK_SEEDS: TrackSeed[] = [
     ],
   },
   {
+    slug: 'typescript-basics',
+    title: 'TypeScript Basics',
+    language: 'typescript',
+    description:
+      'Add types to JavaScript — type annotations, interfaces, generics, and safer code at scale.',
+    icon: 'braces',
+    difficulty: 'beginner',
+    order: 3,
+    lessons: [
+      '1. Why TypeScript?',
+      '2. Basic Types & Annotations',
+      '3. Interfaces & Type Aliases',
+      '4. Functions & Generics',
+      '5. tsconfig & Tooling',
+    ],
+  },
+  {
     slug: 'react-fundamentals',
     title: 'React Fundamentals',
     language: 'javascript',
@@ -56,13 +73,132 @@ const TRACK_SEEDS: TrackSeed[] = [
       'Build modern UIs with React — components, props, state, effects, and a small real-world app.',
     icon: 'component',
     difficulty: 'beginner',
-    order: 3,
+    order: 4,
     lessons: [
       '1. Components & JSX',
       '2. Props & State',
       '3. Events & Forms',
       '4. useEffect & Fetching Data',
       '5. Building a Small App',
+    ],
+  },
+  {
+    slug: 'nodejs-basics',
+    title: 'Node.js Basics',
+    language: 'javascript',
+    description:
+      'Run JavaScript on the server — modules, file system, HTTP, and building a simple API.',
+    icon: 'server',
+    difficulty: 'beginner',
+    order: 5,
+    lessons: [
+      '1. What is Node.js?',
+      '2. Modules: CommonJS & ESM',
+      '3. The fs & path Modules',
+      '4. HTTP Server Basics',
+      '5. Build a Simple REST API',
+    ],
+  },
+  {
+    slug: 'html-css-basics',
+    title: 'HTML & CSS',
+    language: 'html',
+    description:
+      'The building blocks of every website — structure with HTML, style with CSS, and responsive layouts.',
+    icon: 'layout',
+    difficulty: 'beginner',
+    order: 6,
+    lessons: [
+      '1. HTML Structure & Tags',
+      '2. Forms & Inputs',
+      '3. CSS Selectors & Box Model',
+      '4. Flexbox & Grid',
+      '5. Responsive Design',
+    ],
+  },
+  {
+    slug: 'sql-basics',
+    title: 'SQL Basics',
+    language: 'sql',
+    description:
+      'Talk to databases — SELECT, JOIN, GROUP BY, and design simple schemas.',
+    icon: 'database',
+    difficulty: 'beginner',
+    order: 7,
+    lessons: [
+      '1. What is a Database?',
+      '2. SELECT, WHERE & ORDER BY',
+      '3. INSERT, UPDATE & DELETE',
+      '4. JOINs Explained',
+      '5. GROUP BY & Aggregates',
+    ],
+  },
+  {
+    slug: 'c-basics',
+    title: 'C Basics',
+    language: 'c',
+    description:
+      'The mother of modern languages — memory, pointers, and how computers really work.',
+    icon: 'cpu',
+    difficulty: 'intermediate',
+    order: 8,
+    lessons: [
+      '1. Structure of a C Program',
+      '2. Variables, Types & printf',
+      '3. Pointers & Memory',
+      '4. Functions & Recursion',
+      '5. Arrays & Strings',
+    ],
+  },
+  {
+    slug: 'cpp-basics',
+    title: 'C++ Basics',
+    language: 'cpp',
+    description:
+      'Object-oriented power — classes, templates, and the STL for fast programs.',
+    icon: 'cpu',
+    difficulty: 'intermediate',
+    order: 9,
+    lessons: [
+      '1. From C to C++',
+      '2. Classes & Objects',
+      '3. Inheritance & Polymorphism',
+      '4. Templates & the STL',
+      '5. Memory Management',
+    ],
+  },
+  {
+    slug: 'java-basics',
+    title: 'Java Basics',
+    language: 'java',
+    description:
+      'Write once, run anywhere — classes, inheritance, and the JVM ecosystem.',
+    icon: 'coffee',
+    difficulty: 'beginner',
+    order: 10,
+    lessons: [
+      '1. Hello Java & the JVM',
+      '2. Variables & Control Flow',
+      '3. Classes & Objects',
+      '4. Inheritance & Interfaces',
+      '5. Collections Framework',
+    ],
+  },
+  {
+    slug: 'csharp-basics',
+    title: 'C# Basics',
+    language: 'csharp',
+    description:
+      'Microsoft’s modern, versatile language — classes, LINQ, and the .NET runtime.',
+    icon: 'hash',
+    difficulty: 'beginner',
+    order: 11,
+    lessons: [
+      '1. C# & .NET Overview',
+      '2. Variables & Types',
+      '3. Classes & Methods',
+      '4. LINQ Basics',
+      '5. Async & Tasks',
     ],
   },
   {
@@ -73,7 +209,7 @@ const TRACK_SEEDS: TrackSeed[] = [
       'Discover Go — packages, types, multiple return values, structs, methods, and goroutines.',
     icon: 'gopher',
     difficulty: 'beginner',
-    order: 4,
+    order: 12,
     lessons: [
       '1. Packages & Hello World',
       '2. Variables & Types',
@@ -90,7 +226,7 @@ const TRACK_SEEDS: TrackSeed[] = [
       'Step into Rust — ownership, structs, enums, pattern matching, error handling, and traits.',
     icon: 'gear',
     difficulty: 'intermediate',
-    order: 5,
+    order: 13,
     lessons: [
       '1. Ownership & Borrowing',
       '2. Structs & Enums',
@@ -99,20 +235,57 @@ const TRACK_SEEDS: TrackSeed[] = [
       '5. Traits Basics',
     ],
   },
+  {
+    slug: 'git-basics',
+    title: 'Git & Version Control',
+    language: 'bash',
+    description:
+      'Track changes, collaborate, and never lose code again — commits, branches, and remotes.',
+    icon: 'git-branch',
+    difficulty: 'beginner',
+    order: 14,
+    lessons: [
+      '1. What is Git?',
+      '2. init, add, commit & log',
+      '3. Branches & Merge',
+      '4. Remote Repos (GitHub)',
+      '5. Pull Requests & Workflow',
+    ],
+  },
+  {
+    slug: 'bash-basics',
+    title: 'Bash & Shell',
+    language: 'bash',
+    description:
+      'Automate the terminal — commands, scripts, pipes, and small automation tools.',
+    icon: 'terminal',
+    difficulty: 'beginner',
+    order: 15,
+    lessons: [
+      '1. The Terminal & Commands',
+      '2. Files, Pipes & Redirection',
+      '3. Writing Shell Scripts',
+      '4. Variables & Conditionals',
+      '5. Loops & Automation',
+    ],
+  },
 ]
 
 /**
  * Ensure the default set of tracks + lesson *titles* exist in the DB.
+ * Idempotent: inserts only tracks whose slug is missing (so new tracks can
+ * be added over time without touching existing ones).
  * Lesson `content` is left empty and generated lazily by /api/lessons/[id].
- * Idempotent — safe to call on every GET.
  */
 export async function ensureTracksSeeded(): Promise<void> {
-  const existingCount = await db.learningTrack.count()
-  if (existingCount > 0) return
+  const existing = await db.learningTrack.findMany({ select: { slug: true } })
+  const existingSlugs = new Set(existing.map((t) => t.slug))
+  const missing = TRACK_SEEDS.filter((s) => !existingSlugs.has(s.slug))
+  if (missing.length === 0) return
 
-  // Create all tracks + lessons in a single DB round-trip via nested writes.
+  // Insert only the missing tracks (with their lessons) in one transaction.
   await db.$transaction(
-    TRACK_SEEDS.map((seed) =>
+    missing.map((seed) =>
       db.learningTrack.create({
         data: {
           slug: seed.slug,

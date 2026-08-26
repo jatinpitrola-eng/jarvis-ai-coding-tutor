@@ -9,6 +9,18 @@ export type Language =
   | 'typescript'
   | 'go'
   | 'rust'
+  | 'c'
+  | 'cpp'
+  | 'java'
+  | 'csharp'
+  | 'sql'
+  | 'html'
+  | 'css'
+  | 'bash'
+  | 'php'
+  | 'ruby'
+  | 'swift'
+  | 'kotlin'
   | 'general'
 
 interface AppState {
@@ -46,5 +58,17 @@ export const LANGUAGE_LABELS: Record<Language, string> = {
   typescript: 'TypeScript',
   go: 'Go',
   rust: 'Rust',
+  c: 'C',
+  cpp: 'C++',
+  java: 'Java',
+  csharp: 'C#',
+  sql: 'SQL',
+  html: 'HTML',
+  css: 'CSS',
+  bash: 'Bash',
+  php: 'PHP',
+  ruby: 'Ruby',
+  swift: 'Swift',
+  kotlin: 'Kotlin',
   general: 'General',
 }

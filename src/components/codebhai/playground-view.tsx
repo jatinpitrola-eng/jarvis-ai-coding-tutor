@@ -43,6 +43,18 @@ type PlaygroundLanguage =
   | 'typescript'
   | 'go'
   | 'rust'
+  | 'c'
+  | 'cpp'
+  | 'java'
+  | 'csharp'
+  | 'sql'
+  | 'html'
+  | 'css'
+  | 'bash'
+  | 'php'
+  | 'ruby'
+  | 'swift'
+  | 'kotlin'
 type Difficulty = 'easy' | 'medium' | 'hard'
 
 interface Exercise {
@@ -66,6 +78,18 @@ const LANGUAGES: PlaygroundLanguage[] = [
   'typescript',
   'go',
   'rust',
+  'c',
+  'cpp',
+  'java',
+  'csharp',
+  'sql',
+  'html',
+  'css',
+  'bash',
+  'php',
+  'ruby',
+  'swift',
+  'kotlin',
 ]
 
 const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard']

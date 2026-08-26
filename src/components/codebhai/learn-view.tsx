@@ -21,6 +21,11 @@ import {
   Wrench,
   Sparkles,
   Loader2,
+  Server,
+  Coffee,
+  Hash,
+  Component,
+  Cog,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -68,6 +73,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   code: Code2,
   database: Database,
   git: GitBranch,
+  'git-branch': GitBranch,
   layout: Layout,
   cpu: Cpu,
   globe: Globe,
@@ -77,6 +83,13 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   graduation: GraduationCap,
   book: BookOpen,
   sparkles: Sparkles,
+  snake: Code2,
+  component: Component,
+  server: Server,
+  coffee: Coffee,
+  hash: Hash,
+  gopher: Terminal,
+  gear: Cog,
 }
 
 function getIcon(name?: string) {
